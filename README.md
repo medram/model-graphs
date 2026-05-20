@@ -2,6 +2,10 @@
 
 Interactive dashboard comparing AI model intelligence and coding performance against pricing, using data from [Artificial Analysis](https://artificialanalysis.ai/) and [OpenRouter](https://openrouter.ai/).
 
+![Intelligence vs. Cost screenshot](screenshot.png)
+
+**Live demo:** [model-graphs.streamlit.app](https://model-graphs.streamlit.app/)
+
 ## Features
 
 - **Intelligence vs. Cost** — Scatter plot of model scores against pricing per 1M tokens
