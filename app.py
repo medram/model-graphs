@@ -2,6 +2,9 @@ import pandas as pd
 import plotly.graph_objects as go
 import requests
 import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
 
 st.set_page_config(page_title="Intelligence vs. Cost to Run", layout="wide")
 st.title("Intelligence vs. Cost to Run — Artificial Analysis Intelligence Index")
