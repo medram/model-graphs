@@ -228,7 +228,7 @@ PROVIDER_COLORS = {
     "MiniMax": "#FF69B4",
     "Mistral": "#FF4500",
     "NVIDIA": "#9ACD32",
-    "OpenAI": "#1A1A1A",
+    "OpenAI": "#555555",
     "xAI": "#8A2BE2",
     "Xiaomi": "#FF6347",
     "Z AI": "#4682B4",
@@ -397,11 +397,13 @@ def main():
                 x=0,
                 font=dict(size=12),
             ),
-            plot_bgcolor="white",
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="rgba(150,150,150,1)"),
             margin=dict(t=80, l=60, r=40, b=60),
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, theme="streamlit")
 
         # Info note
         st.caption(
@@ -480,11 +482,13 @@ def main():
                 x=0,
                 font=dict(size=12),
             ),
-            plot_bgcolor="white",
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="rgba(150,150,150,1)"),
             margin=dict(t=60, l=60, r=40, b=150),
         )
 
-        st.plotly_chart(bar_fig, use_container_width=True)
+        st.plotly_chart(bar_fig, use_container_width=True, theme="streamlit")
 
     with st.expander("Price-to-Performance Ratio", expanded=True):
         perf_df = plot_df[
