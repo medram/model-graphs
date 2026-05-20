@@ -274,18 +274,25 @@ def main():
     if score_col == "coding_index":
         filtered_df = filtered_df[filtered_df["coding_index"].notna()]
 
-    # Model selection — default to top 30 by selected score
+    # Model selection — default to top N by selected score
     st.sidebar.header("Model Selection")
-    top_30 = (
+    top_n = st.sidebar.number_input(
+        "Number of top models to show",
+        min_value=1,
+        max_value=len(filtered_df),
+        value=min(30, len(filtered_df)),
+        step=5,
+    )
+    top_models = (
         filtered_df.sort_values(score_col, ascending=False)
-        .head(30)["model_name"]
+        .head(top_n)["model_name"]
         .tolist()
     )
     all_models = sorted(filtered_df["model_name"].tolist())
     selected_models = st.sidebar.multiselect(
         "Select models to display",
         all_models,
-        default=sorted(top_30),
+        default=sorted(top_models),
     )
 
     plot_df = filtered_df[filtered_df["model_name"].isin(selected_models)].copy()
@@ -476,6 +483,82 @@ def main():
 
         st.plotly_chart(bar_fig, use_container_width=True)
 
+    with st.expander("Price-to-Performance Ratio", expanded=True):
+        perf_df = plot_df[
+            [
+                "model_name",
+                "provider",
+                score_col,
+                "prompt_price_per_m",
+                "completion_price_per_m",
+                "cost_per_m",
+            ]
+        ].copy()
+        perf_df["ratio"] = perf_df["cost_per_m"] / perf_df[score_col]
+        perf_df = perf_df.sort_values("ratio", ascending=True).reset_index(drop=True)
+
+        # Calculate gain/loss vs previous row (the better-value model above)
+        prev_score = perf_df[score_col].shift(1)
+        prev_cost = perf_df["cost_per_m"].shift(1)
+        perf_df["next_score_gain"] = perf_df[score_col] - prev_score
+        perf_df["next_cost_gain"] = perf_df["cost_per_m"] - prev_cost
+
+        perf_df = perf_df.rename(
+            columns={
+                "model_name": "Model",
+                "provider": "Provider",
+                score_col: score_metric,
+                "prompt_price_per_m": "Input $/M",
+                "completion_price_per_m": "Output $/M",
+                "cost_per_m": "Total $/M",
+                "ratio": f"$ per {score_metric}",
+                "next_score_gain": f"Next Δ {score_metric}",
+                "next_cost_gain": "Next Δ $/M",
+            }
+        )
+
+        # Format delta columns with arrows and colors
+        def _fmt_delta(val, invert=False):
+            """Format a delta value with colored arrow emoji. invert=True means lower is better."""
+            if pd.isna(val):
+                return "—"
+            positive_is_good = not invert
+            if val > 0:
+                arrow = "🟢 ↑" if positive_is_good else "🔴 ↑"
+            elif val < 0:
+                arrow = "🔴 ↓" if positive_is_good else "🟢 ↓"
+            else:
+                return "0"
+            return f"{arrow} {val:+.1f}" if not invert else f"{arrow} ${val:+.2f}"
+
+        score_delta_col = f"Next Δ {score_metric}"
+        cost_delta_col = "Next Δ $/M"
+        perf_df[score_delta_col] = perf_df[score_delta_col].apply(
+            lambda v: _fmt_delta(v, invert=False)
+        )
+        perf_df[cost_delta_col] = perf_df[cost_delta_col].apply(
+            lambda v: _fmt_delta(v, invert=True)
+        )
+
+        st.dataframe(
+            perf_df.style.format(
+                {
+                    score_metric: "{:.1f}",
+                    "Input $/M": "${:.2f}",
+                    "Output $/M": "${:.2f}",
+                    "Total $/M": "${:.2f}",
+                    f"$ per {score_metric}": "${:.3f}",
+                },
+                na_rep="—",
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.caption(
+            f"**Next Δ {score_metric}**: score change if you switch to the next row's model · "
+            "**Next Δ $/M**: cost change (positive = more expensive)"
+        )
+
     # Show data table
     with st.expander("View raw data"):
         display_df = plot_df[
@@ -520,44 +603,6 @@ def main():
         ]
         match_display = match_display.sort_values(score_metric, ascending=False)
         st.dataframe(match_display, use_container_width=True, hide_index=True)
-
-    with st.expander("Price-to-Performance Ratio"):
-        perf_df = plot_df[
-            [
-                "model_name",
-                "provider",
-                score_col,
-                "prompt_price_per_m",
-                "completion_price_per_m",
-                "cost_per_m",
-            ]
-        ].copy()
-        perf_df["ratio"] = perf_df["cost_per_m"] / perf_df[score_col]
-        perf_df = perf_df.sort_values("ratio", ascending=True)
-        perf_df = perf_df.rename(
-            columns={
-                "model_name": "Model",
-                "provider": "Provider",
-                score_col: score_metric,
-                "prompt_price_per_m": "Input $/M",
-                "completion_price_per_m": "Output $/M",
-                "cost_per_m": "Total $/M",
-                "ratio": f"$ per {score_metric}",
-            }
-        )
-        st.dataframe(
-            perf_df.style.format(
-                {
-                    score_metric: "{:.1f}",
-                    "Input $/M": "${:.2f}",
-                    "Output $/M": "${:.2f}",
-                    "Total $/M": "${:.2f}",
-                    f"$ per {score_metric}": "${:.3f}",
-                }
-            ),
-            use_container_width=True,
-            hide_index=True,
-        )
 
 
 if __name__ == "__main__":
