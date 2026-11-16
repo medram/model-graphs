@@ -90,13 +90,21 @@ def fetch_artificial_analysis_models():
     import os
 
     api_key = os.environ.get("AA_API_KEY", "")
-    resp = requests.get(
-        "https://artificialanalysis.ai/api/v2/data/llms/models",
-        headers={"x-api-key": api_key},
-        timeout=30,
-    )
-    resp.raise_for_status()
-    data = resp.json()["data"]
+    data = []
+    page = 1
+    while True:
+        resp = requests.get(
+            "https://artificialanalysis.ai/api/v2/language/models/free",
+            headers={"x-api-key": api_key},
+            params={"page": page},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        page_data = resp.json()
+        data.extend(page_data["data"])
+        if not page_data["pagination"]["has_more"]:
+            break
+        page += 1
 
     models = []
     for m in data:
@@ -105,24 +113,20 @@ def fetch_artificial_analysis_models():
         if intelligence is None:
             continue
 
-        coding = evals.get("artificial_analysis_coding_index")
-
         creator = m.get("model_creator") or {}
         models.append(
             {
                 "aa_name": m["name"],
                 "aa_slug": m["slug"],
-                "creator_slug": creator.get("slug", ""),
                 "creator_name": creator.get("name", ""),
                 "intelligence_index": intelligence,
-                "coding_index": coding,
             }
         )
 
     return pd.DataFrame(models)
 
 
-# Mapping from AA creator slugs to OpenRouter provider prefixes
+# Map normalized AA creator names to OpenRouter provider prefixes.
 AA_TO_OPENROUTER_PREFIX = {
     "openai": "openai",
     "anthropic": "anthropic",
@@ -130,16 +134,21 @@ AA_TO_OPENROUTER_PREFIX = {
     "deepseek": "deepseek",
     "meta": "meta-llama",
     "mistral": "mistralai",
+    "mistralai": "mistralai",
     "alibaba": "qwen",
+    "alibabacloud": "qwen",
     "xai": "x-ai",
+    "amazon": "amazon",
     "aws": "amazon",
     "nvidia": "nvidia",
     "minimax": "minimax",
     "kimi": "moonshotai",
+    "moonshotai": "moonshotai",
     "xiaomi": "xiaomi",
     "zai": "z-ai",
     "cohere": "cohere",
-    "bytedance_seed": "bytedance-seed",
+    "bytedance": "bytedance-seed",
+    "bytedanceseed": "bytedance-seed",
     "tencent": "tencent",
     "inclusionai": "inclusionai",
     "inception": "inception",
@@ -177,8 +186,11 @@ def match_models(openrouter_df, aa_df):
     seen_keys = set()
 
     for _, aa_row in aa_df.iterrows():
-        creator_slug = aa_row["creator_slug"]
-        or_prefix = AA_TO_OPENROUTER_PREFIX.get(creator_slug)
+        creator_name = aa_row["creator_name"]
+        creator_key = (
+            creator_name.casefold().replace(" ", "").replace("-", "").replace("_", "")
+        )
+        or_prefix = AA_TO_OPENROUTER_PREFIX.get(creator_key)
         if not or_prefix:
             continue
 
@@ -205,7 +217,6 @@ def match_models(openrouter_df, aa_df):
                     "model_name": aa_row["aa_name"],
                     "provider": extract_provider(best["id"]),
                     "intelligence_index": aa_row["intelligence_index"],
-                    "coding_index": aa_row["coding_index"],
                     "is_reasoning": False,
                     "blended_price_per_m": best["blended_price_per_m"],
                     "prompt_price_per_m": best["prompt_price_per_m"],
@@ -256,14 +267,8 @@ def main():
     # Sidebar filters
     st.sidebar.header("Filters")
 
-    score_metric = st.sidebar.radio(
-        "Score metric",
-        ["Intelligence Index", "Coding Index"],
-        horizontal=True,
-    )
-    score_col = (
-        "intelligence_index" if score_metric == "Intelligence Index" else "coding_index"
-    )
+    score_metric = "Intelligence Index"
+    score_col = "intelligence_index"
 
     providers = sorted(matched_df["provider"].unique())
     selected_providers = st.sidebar.multiselect(
@@ -274,8 +279,6 @@ def main():
 
     # Filter
     filtered_df = matched_df[matched_df["provider"].isin(selected_providers)]
-    if score_col == "coding_index":
-        filtered_df = filtered_df[filtered_df["coding_index"].notna()]
 
     # Model selection — default to top N by selected score
     st.sidebar.header("Model Selection")
