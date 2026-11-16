@@ -1,6 +1,6 @@
 # Model Graphs
 
-Interactive dashboard comparing AI model intelligence and coding performance against pricing, using data from [Artificial Analysis](https://artificialanalysis.ai/) and [OpenRouter](https://openrouter.ai/).
+Interactive dashboard comparing AI model benchmark scores against pricing, using data from [Artificial Analysis](https://artificialanalysis.ai/) and [OpenRouter](https://openrouter.ai/).
 
 ![Intelligence vs. Cost screenshot](screenshot.png)
 
@@ -8,10 +8,10 @@ Interactive dashboard comparing AI model intelligence and coding performance aga
 
 ## Features
 
-- **Intelligence vs. Cost** — Scatter plot of model scores against pricing per 1M tokens
+- **Score vs. Cost** — Scatter plot of model scores against pricing per 1M tokens
 - **Cost to Run** — Stacked bar chart of input/output pricing across models
 - **Price-to-Performance Ratio** — Table sorted by best value, with delta indicators showing marginal gains between models
-- Filter by provider and number of top models
+- Filter by provider, score metric (Intelligence Index or a published capability index), and number of top models
 - Configurable top-N model selector (default: 30)
 
 ## Setup
@@ -43,4 +43,4 @@ make dev
 ## Data Sources
 
 - **Model pricing**: [OpenRouter API](https://openrouter.ai/api/v1/models)
-- **Intelligence Index**: [Artificial Analysis API](https://artificialanalysis.ai/leaderboards/models)
+- **Index scores**: [Artificial Analysis API](https://artificialanalysis.ai/leaderboards/models)

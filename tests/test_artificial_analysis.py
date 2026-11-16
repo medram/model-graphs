@@ -57,6 +57,7 @@ class ArtificialAnalysisApiTest(unittest.TestCase):
                         "evaluations": {
                             "artificial_analysis_intelligence_index": 70.1,
                             "artificial_analysis_coding_index": None,
+                            "artificial_analysis_engineering_index": 55.2,
                         },
                     }
                 ],
@@ -76,8 +77,19 @@ class ArtificialAnalysisApiTest(unittest.TestCase):
                         "evaluations": {
                             "artificial_analysis_intelligence_index": 68.4,
                             "artificial_analysis_coding_index": None,
+                            "artificial_analysis_engineering_index": None,
                         },
-                    }
+                    },
+                    {
+                        "id": "aa-unscored-id",
+                        "name": "Unscored Model",
+                        "slug": "unscored-model",
+                        "model_creator": {"id": "creator-google", "name": "Google"},
+                        "evaluations": {
+                            "artificial_analysis_intelligence_index": None,
+                            "artificial_analysis_coding_index": None,
+                        },
+                    },
                 ],
             }
         )
@@ -105,6 +117,19 @@ class ArtificialAnalysisApiTest(unittest.TestCase):
             matched_df = app.match_models(openrouter_df, aa_df)
 
         self.assertEqual(2, len(matched_df))
+        self.assertNotIn("Unscored Model", aa_df["aa_name"].tolist())
+        self.assertEqual(
+            [70.1, 68.4],
+            matched_df["intelligence_index"].tolist(),
+        )
+        self.assertEqual(
+            ["intelligence_index", "engineering_index"],
+            [
+                column
+                for column in matched_df.columns
+                if column.endswith("_index") and matched_df[column].notna().any()
+            ],
+        )
         self.assertEqual(
             ["openai/gpt-5-5", "google/gemini-3-0"],
             matched_df["openrouter_id"].tolist(),

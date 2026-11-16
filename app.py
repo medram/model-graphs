@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 st.set_page_config(page_title="Intelligence vs. Cost to Run", layout="wide")
-st.title("Intelligence vs. Cost to Run — Artificial Analysis Intelligence Index")
-st.caption("Artificial Analysis Intelligence Index · Cost to run Intelligence Index")
+st.title("Model Intelligence vs. Cost to Run")
+st.caption("Artificial Analysis index scores · Cost from OpenRouter pricing")
 
 
 @st.cache_data(ttl=3600)
@@ -84,9 +84,32 @@ def extract_provider(model_id: str) -> str:
     return provider_map.get(prefix, prefix.title())
 
 
+INDEX_LABELS = {
+    "intelligence_index": "Intelligence Index",
+    "coding_index": "Coding Index",
+    "agentic_index": "Agentic Index",
+    "finance_and_accounting_index": "Finance & Accounting Index",
+    "strategy_and_ops_index": "Strategy & Ops Index",
+    "legal_index": "Legal Index",
+    "healthcare_and_medical_index": "Healthcare & Medical Index",
+    "engineering_index": "Engineering Index",
+    "economics_index": "Economics Index",
+}
+
+
+def _index_column(eval_key):
+    """Map an Artificial Analysis evaluation key to a dataframe column."""
+    return eval_key.removeprefix("artificial_analysis_")
+
+
+def index_label(column):
+    """Human-readable label for an index column."""
+    return INDEX_LABELS.get(column, column.replace("_", " ").title())
+
+
 @st.cache_data(ttl=3600)
 def fetch_artificial_analysis_models():
-    """Fetch intelligence index data from Artificial Analysis API."""
+    """Fetch Artificial Analysis index scores from the v2 free API."""
     import os
 
     api_key = os.environ.get("AA_API_KEY", "")
@@ -109,8 +132,12 @@ def fetch_artificial_analysis_models():
     models = []
     for m in data:
         evals = m.get("evaluations") or {}
-        intelligence = evals.get("artificial_analysis_intelligence_index")
-        if intelligence is None:
+        indices = {
+            _index_column(key): value
+            for key, value in evals.items()
+            if key.startswith("artificial_analysis_") and key.endswith("_index")
+        }
+        if all(value is None for value in indices.values()):
             continue
 
         creator = m.get("model_creator") or {}
@@ -119,7 +146,7 @@ def fetch_artificial_analysis_models():
                 "aa_name": m["name"],
                 "aa_slug": m["slug"],
                 "creator_name": creator.get("name", ""),
-                "intelligence_index": intelligence,
+                **indices,
             }
         )
 
@@ -212,18 +239,23 @@ def match_models(openrouter_df, aa_df):
                 continue
             seen_keys.add(key)
 
-            matched.append(
+            entry = {
+                "model_name": aa_row["aa_name"],
+                "provider": extract_provider(best["id"]),
+                "is_reasoning": False,
+                "blended_price_per_m": best["blended_price_per_m"],
+                "prompt_price_per_m": best["prompt_price_per_m"],
+                "completion_price_per_m": best["completion_price_per_m"],
+                "openrouter_id": best["id"],
+            }
+            entry.update(
                 {
-                    "model_name": aa_row["aa_name"],
-                    "provider": extract_provider(best["id"]),
-                    "intelligence_index": aa_row["intelligence_index"],
-                    "is_reasoning": False,
-                    "blended_price_per_m": best["blended_price_per_m"],
-                    "prompt_price_per_m": best["prompt_price_per_m"],
-                    "completion_price_per_m": best["completion_price_per_m"],
-                    "openrouter_id": best["id"],
+                    column: aa_row[column]
+                    for column in aa_df.columns
+                    if column.endswith("_index")
                 }
             )
+            matched.append(entry)
 
     return pd.DataFrame(matched)
 
@@ -267,8 +299,24 @@ def main():
     # Sidebar filters
     st.sidebar.header("Filters")
 
-    score_metric = "Intelligence Index"
-    score_col = "intelligence_index"
+    # Only offer indices the API actually publishes (Coding and Agentic are
+    # always null in the current v2 API).
+    index_columns = [
+        column
+        for column in matched_df.columns
+        if column.endswith("_index") and matched_df[column].notna().any()
+    ]
+    if not index_columns:
+        st.error("No Artificial Analysis index scores available.")
+        return
+    index_columns.sort(key=lambda column: column != "intelligence_index")
+    score_options = [index_label(column) for column in index_columns]
+    score_metric = st.sidebar.radio(
+        "Score metric",
+        score_options,
+        horizontal=True,
+    )
+    score_col = index_columns[score_options.index(score_metric)]
 
     providers = sorted(matched_df["provider"].unique())
     selected_providers = st.sidebar.multiselect(
@@ -279,6 +327,10 @@ def main():
 
     # Filter
     filtered_df = matched_df[matched_df["provider"].isin(selected_providers)]
+    filtered_df = filtered_df[filtered_df[score_col].notna()]
+    if filtered_df.empty:
+        st.warning("No models have a score for the selected metric.")
+        return
 
     # Model selection — default to top N by selected score
     st.sidebar.header("Model Selection")
@@ -313,7 +365,7 @@ def main():
     )
 
     # Create tabs for the two charts
-    tab1, tab2 = st.tabs(["Intelligence vs. Cost", "Cost to Run"])
+    tab1, tab2 = st.tabs([f"{score_metric} vs. Cost", "Cost to Run"])
 
     with tab1:
         # Create the scatter plot
@@ -411,7 +463,7 @@ def main():
         # Info note
         st.caption(
             "Data sources: Model pricing from [OpenRouter API](https://openrouter.ai/api/v1/models) · "
-            "Intelligence Index from [Artificial Analysis](https://artificialanalysis.ai/leaderboards/models)"
+            "Index scores from [Artificial Analysis](https://artificialanalysis.ai/leaderboards/models)"
         )
 
     with tab2:
