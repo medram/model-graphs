@@ -84,27 +84,20 @@ def extract_provider(model_id: str) -> str:
     return provider_map.get(prefix, prefix.title())
 
 
-INDEX_LABELS = {
+# Only these indices are surfaced in the UI.
+SCORE_METRICS = {
     "intelligence_index": "Intelligence Index",
     "coding_index": "Coding Index",
-    "agentic_index": "Agentic Index",
-    "finance_and_accounting_index": "Finance & Accounting Index",
-    "strategy_and_ops_index": "Strategy & Ops Index",
-    "legal_index": "Legal Index",
-    "healthcare_and_medical_index": "Healthcare & Medical Index",
-    "engineering_index": "Engineering Index",
-    "economics_index": "Economics Index",
 }
 
 
-def _index_column(eval_key):
-    """Map an Artificial Analysis evaluation key to a dataframe column."""
-    return eval_key.removeprefix("artificial_analysis_")
-
-
-def index_label(column):
-    """Human-readable label for an index column."""
-    return INDEX_LABELS.get(column, column.replace("_", " ").title())
+def available_score_metrics(matched_df):
+    """Supported metrics that have at least one score, in display order."""
+    return [
+        column
+        for column in SCORE_METRICS
+        if column in matched_df.columns and matched_df[column].notna().any()
+    ]
 
 
 @st.cache_data(ttl=3600)
@@ -133,9 +126,10 @@ def fetch_artificial_analysis_models():
     for m in data:
         evals = m.get("evaluations") or {}
         indices = {
-            _index_column(key): value
-            for key, value in evals.items()
-            if key.startswith("artificial_analysis_") and key.endswith("_index")
+            "intelligence_index": evals.get(
+                "artificial_analysis_intelligence_index"
+            ),
+            "coding_index": evals.get("artificial_analysis_coding_index"),
         }
         if all(value is None for value in indices.values()):
             continue
@@ -299,24 +293,19 @@ def main():
     # Sidebar filters
     st.sidebar.header("Filters")
 
-    # Only offer indices the API actually publishes (Coding and Agentic are
-    # always null in the current v2 API).
-    index_columns = [
-        column
-        for column in matched_df.columns
-        if column.endswith("_index") and matched_df[column].notna().any()
-    ]
-    if not index_columns:
+    # Coding Index is null in the current API, so it appears only once AA
+    # publishes scores for it.
+    score_columns = available_score_metrics(matched_df)
+    if not score_columns:
         st.error("No Artificial Analysis index scores available.")
         return
-    index_columns.sort(key=lambda column: column != "intelligence_index")
-    score_options = [index_label(column) for column in index_columns]
+    score_options = [SCORE_METRICS[column] for column in score_columns]
     score_metric = st.sidebar.radio(
         "Score metric",
         score_options,
         horizontal=True,
     )
-    score_col = index_columns[score_options.index(score_metric)]
+    score_col = score_columns[score_options.index(score_metric)]
 
     providers = sorted(matched_df["provider"].unique())
     selected_providers = st.sidebar.multiselect(

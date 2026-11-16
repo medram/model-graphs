@@ -11,7 +11,7 @@ Interactive dashboard comparing AI model benchmark scores against pricing, using
 - **Score vs. Cost** — Scatter plot of model scores against pricing per 1M tokens
 - **Cost to Run** — Stacked bar chart of input/output pricing across models
 - **Price-to-Performance Ratio** — Table sorted by best value, with delta indicators showing marginal gains between models
-- Filter by provider, score metric (Intelligence Index or a published capability index), and number of top models
+- Filter by provider, score metric (Intelligence Index, plus Coding Index once AA publishes scores), and number of top models
 - Configurable top-N model selector (default: 30)
 
 ## Setup

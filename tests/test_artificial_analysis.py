@@ -122,13 +122,10 @@ class ArtificialAnalysisApiTest(unittest.TestCase):
             [70.1, 68.4],
             matched_df["intelligence_index"].tolist(),
         )
+        self.assertNotIn("engineering_index", aa_df.columns)
         self.assertEqual(
-            ["intelligence_index", "engineering_index"],
-            [
-                column
-                for column in matched_df.columns
-                if column.endswith("_index") and matched_df[column].notna().any()
-            ],
+            ["intelligence_index"],
+            app.available_score_metrics(matched_df),
         )
         self.assertEqual(
             ["openai/gpt-5-5", "google/gemini-3-0"],
@@ -146,6 +143,49 @@ class ArtificialAnalysisApiTest(unittest.TestCase):
             [{"x-api-key": "test-key"}, {"x-api-key": "test-key"}],
             [call.kwargs["headers"] for call in get.call_args_list],
         )
+
+    def test_offers_coding_index_when_the_api_publishes_scores(self):
+        page = FakeResponse(
+            {
+                "tier": "free",
+                "intelligence_index_version": 5,
+                "pagination": {"page": 1, "page_size": 200, "total_pages": 1, "has_more": False},
+                "data": [
+                    {
+                        "id": "aa-fable-id",
+                        "name": "Fable 5.1",
+                        "slug": "fable-5-1",
+                        "model_creator": {"id": "creator-anthropic", "name": "Anthropic"},
+                        "evaluations": {
+                            "artificial_analysis_intelligence_index": 60.0,
+                            "artificial_analysis_coding_index": 80.7,
+                        },
+                    }
+                ],
+            }
+        )
+        openrouter_df = pd.DataFrame(
+            [
+                {
+                    "id": "anthropic/fable-5-1",
+                    "blended_price_per_m": 6.0,
+                    "prompt_price_per_m": 3.0,
+                    "completion_price_per_m": 15.0,
+                }
+            ]
+        )
+
+        with patch.dict(os.environ, {"AA_API_KEY": "test-key"}), patch.object(
+            app.requests, "get", return_value=page
+        ):
+            aa_df = app.fetch_artificial_analysis_models()
+            matched_df = app.match_models(openrouter_df, aa_df)
+
+        self.assertEqual(
+            ["intelligence_index", "coding_index"],
+            app.available_score_metrics(matched_df),
+        )
+        self.assertEqual([80.7], matched_df["coding_index"].tolist())
 
 
 if __name__ == "__main__":
